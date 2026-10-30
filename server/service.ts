@@ -833,6 +833,8 @@ export function createService(db: Database) {
         return json({ error: e.message }, 400);
       console.error("SIMORA request failed", {
         code: (e as any)?.code || "INTERNAL",
+        message: (e as Error)?.message,
+        detail: (e as any)?.detail,
       });
       return json(
         {

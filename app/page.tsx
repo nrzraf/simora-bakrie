@@ -554,7 +554,7 @@ function Home({ auth }: { auth: AuthActions }) {
             <GraduationCap size={25} />
           </span>
           <div>
-            SIMORA<small>CONNECT. COLLABORATE. GROW.</small>
+            SIMORA
           </div>
         </a>
         <p className="nav-label">MENU UTAMA</p>
