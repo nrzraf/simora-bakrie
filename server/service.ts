@@ -160,7 +160,7 @@ export function createService(db: Database) {
           : url.origin;
         if (!path.startsWith("cron/") && (!origin || origin !== allowed))
           fail(403, "Origin permintaan tidak diizinkan.");
-        const noBody = path.startsWith("cron/");
+        const noBody = path.startsWith("cron/") || method === "GET";
         if (
           method !== "DELETE" &&
           !noBody &&
@@ -243,7 +243,7 @@ export function createService(db: Database) {
         });
       }
       // ---------- Pengingat H-1 (cron, dipanggil scheduler) ----------
-      if (path === "cron/reminder" && method === "POST") {
+      if (path === "cron/reminder" && ["GET", "POST"].includes(method)) {
         const secret = request.headers.get("x-cron-key") || url.searchParams.get("key") || "";
         if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET)
           fail(403, "Kunci cron tidak valid.");
