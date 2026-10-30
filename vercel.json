@@ -3,5 +3,13 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "installCommand": "npm ci",
-  "regions": ["sin1"]
+  "regions": [
+    "sin1"
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/reminder?key=simora-cron-2026-bakrie",
+      "schedule": "0 1 * * *"
+    }
+  ]
 }
