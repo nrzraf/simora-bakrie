@@ -557,7 +557,6 @@ function Home({ auth }: { auth: AuthActions }) {
             SIMORA
           </div>
         </a>
-        <p className="nav-label">MENU UTAMA</p>
         <nav>
           {nav
             .filter((n) => !["Pengguna", "Audit Log"].includes(n.name) || role === "Admin")
@@ -1985,14 +1984,16 @@ function Home({ auth }: { auth: AuthActions }) {
             Nomor WhatsApp
             <input name="phone" maxLength={24} />
           </label>
-          <label>
-            Organisasi
-            <select name="org" required={newAccountRole !== "Anggota"}>
-              {organizations.map((o) => (
-                <option key={o.name}>{o.name}</option>
-              ))}
-            </select>
-          </label>
+          {newAccountRole !== "Anggota" && (
+            <label>
+              Organisasi
+              <select name="org" required>
+                {organizations.map((o) => (
+                  <option key={o.name}>{o.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             Kata sandi awal
             <input
