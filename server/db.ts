@@ -4,13 +4,19 @@ const shared = globalThis as unknown as { simoraPool?: Pool };
 function pool() {
   if (!process.env.DATABASE_URL)
     throw new Error("DATABASE_URL belum dikonfigurasi.");
-  if (!shared.simoraPool)
+  if (!shared.simoraPool) {
     shared.simoraPool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      max: 3,
-      idleTimeoutMillis: 20000,
+      // transaction pooler (port 6543) menangani ratusan klien,
+      // berbeda dengan session pooler yang dibatasi 15 koneksi.
+      max: Number(process.env.DB_POOL_MAX || 5),
+      idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 10000,
+      // schema aplikasi; wajib diset per koneksi karena pooler
+      // tidak mewarisi options=-c search_path.
+      options: "-c search_path=simora,public",
     });
+  }
   return shared.simoraPool;
 }
 export const database: Database = {
