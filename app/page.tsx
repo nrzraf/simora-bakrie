@@ -60,8 +60,8 @@ const organizations = [
   { name: "HMM", full: "Himpunan Mahasiswa Manajemen", color: "rose", desc: "Pengembangan manajemen dan kewirausahaan." },
   { name: "HMPOL", full: "Himpunan Mahasiswa Ilmu Politik", color: "blue", desc: "Diskusi kebijakan dan kajian politik." },
   { name: "HMTL", full: "Himpunan Mahasiswa Teknik Lingkungan", color: "green", desc: "Gerakan lingkungan dan keberlanjutan." },
-  { name: "HMITP", full: "Himpunan Mahasiswa Teknik Industri", color: "purple", desc: "Optimasi sistem dan proses industri." },
-  { name: "HMTI", full: "Himpunan Mahasiswa Teknik Industri", color: "amber", desc: "Rekayasa dan inovasi produksi." },
+  { name: "HMITP", full: "Himpunan Mahasiswa Ilmu Teknologi Pangan", color: "purple", desc: "Inovasi pangan dan teknologi hasil pertanian." },
+  { name: "HMTI", full: "Himpunan Mahasiswa Teknik Industri", color: "amber", desc: "Optimasi sistem dan proses industri." },
 ];
 const nav = [
   { name: "Dashboard", icon: LayoutDashboard },
