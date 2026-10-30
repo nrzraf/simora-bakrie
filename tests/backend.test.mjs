@@ -54,7 +54,7 @@ test("SQL-backed API integration with independent user sessions", async (t) => {
   }
   const pwd = "OnlyForTests-12345";
   await pg.query(
-    "INSERT INTO users(name,email,password_hash,org,role) VALUES('Admin','admin@test.local',$1,'HIMSI','Admin')",
+    "INSERT INTO users(name,email,password_hash,org,role) VALUES('Admin','admin@test.local',$1,'HMSIF','Admin')",
     [await hashPassword(pwd)],
   );
   let admin, pengurus, member, member2, eventId, ticket;
@@ -72,7 +72,7 @@ test("SQL-backed API integration with independent user sessions", async (t) => {
         name: "Member",
         email: "member@test.local",
         password: pwd,
-        org: "HIMSI",
+        org: "HMSIF",
         role: "Admin",
         nim: "1202000001",
         phone: "081200000001",
@@ -181,7 +181,7 @@ test("SQL-backed API integration with independent user sessions", async (t) => {
     async () => {
       const data = {
         name: "Workshop",
-        org: "HIMSI",
+        org: "HMSIF",
         date: "2026-10-30",
         time: "09:00",
         location: "Auditorium",
@@ -465,7 +465,7 @@ test("SQL-backed API integration with independent user sessions", async (t) => {
         "POST",
         {
           name: "Kegiatan Kuota Satu",
-          org: "HIMSI",
+          org: "HMSIF",
           date: "2026-08-01",
           time: "09:00",
           location: "Aula",
@@ -499,7 +499,7 @@ test("SQL-backed API integration with independent user sessions", async (t) => {
       member = await req("auth/login", "POST", { email: "rsvp1@test.local", password: pwd, role: "Anggota" });
       const pembinaRow = (
         await pg.query(
-          "INSERT INTO users(name,email,password_hash,org,role) VALUES('Pembina','pembina@test.local',$1,'HIMSI','Pembina') RETURNING id",
+          "INSERT INTO users(name,email,password_hash,org,role) VALUES('Pembina','pembina@test.local',$1,'HMSIF','Pembina') RETURNING id",
           [await hashPassword(pwd)],
         )
       ).rows[0];
@@ -560,11 +560,36 @@ test("SQL-backed API integration with independent user sessions", async (t) => {
           email: "pembina2@test.local",
           password: pwd,
           role: "Pembina",
+          org: "HMSIF",
         },
         admin.cookie,
       );
       assert.equal(made.status, 201);
       assert.equal(made.body.role, "Pembina");
+      assert.equal(
+        (
+          await req(
+            "users",
+            "POST",
+            { name: "Tanpa Org", email: "noorg@test.local", password: pwd, role: "Pembina" },
+            admin.cookie,
+          )
+        ).status,
+        400,
+        "Pembina tanpa organisasi harus ditolak",
+      );
+      assert.equal(
+        (
+          await req(
+            "users",
+            "POST",
+            { name: "Anggota Baru", email: "anggotabaru@test.local", password: pwd, role: "Anggota" },
+            admin.cookie,
+          )
+        ).status,
+        201,
+        "Anggota tanpa organisasi harus boleh",
+      );
       assert.equal(
         (await req("users/" + made.body.id, "DELETE", undefined, member.cookie)).status,
         403,

@@ -52,30 +52,16 @@ type Event = {
   description: string;
 };
 const organizations = [
-  {
-    name: "HIMSI",
-    full: "Himpunan Mahasiswa Sistem Informasi",
-    color: "rose",
-    desc: "Bertumbuh bersama melalui teknologi dan inovasi.",
-  },
-  {
-    name: "BEM",
-    full: "Badan Eksekutif Mahasiswa",
-    color: "blue",
-    desc: "Wadah aspirasi, kolaborasi, dan perubahan mahasiswa.",
-  },
-  {
-    name: "UKM Seni",
-    full: "Unit Kegiatan Mahasiswa Seni",
-    color: "purple",
-    desc: "Ruang ekspresi untuk kreativitas tanpa batas.",
-  },
-  {
-    name: "Mapala",
-    full: "Mahasiswa Pecinta Alam",
-    color: "green",
-    desc: "Menjelajah alam, membangun kepedulian lingkungan.",
-  },
+  { name: "BEM", full: "Badan Eksekutif Mahasiswa", color: "rose", desc: "Wadah aspirasi dan perubahan mahasiswa." },
+  { name: "SENAT", full: "Senat Mahasiswa", color: "blue", desc: "Pengawasan dan advokasi kebijakan mahasiswa." },
+  { name: "HMTIF", full: "Himpunan Mahasiswa Teknik Informatika", color: "purple", desc: "Kolaborasi teknologi dan rekayasa perangkat lunak." },
+  { name: "HMSIF", full: "Himpunan Mahasiswa Sistem Informasi", color: "green", desc: "Pengembangan sistem informasi dan data." },
+  { name: "HMILKOM", full: "Himpunan Mahasiswa Ilmu Komunikasi", color: "amber", desc: "Kreativitas media dan komunikasi publik." },
+  { name: "HMM", full: "Himpunan Mahasiswa Manajemen", color: "rose", desc: "Pengembangan manajemen dan kewirausahaan." },
+  { name: "HMPOL", full: "Himpunan Mahasiswa Ilmu Politik", color: "blue", desc: "Diskusi kebijakan dan kajian politik." },
+  { name: "HMTL", full: "Himpunan Mahasiswa Teknik Lingkungan", color: "green", desc: "Gerakan lingkungan dan keberlanjutan." },
+  { name: "HMITP", full: "Himpunan Mahasiswa Teknik Industri", color: "purple", desc: "Optimasi sistem dan proses industri." },
+  { name: "HMTI", full: "Himpunan Mahasiswa Teknik Industri", color: "amber", desc: "Rekayasa dan inovasi produksi." },
 ];
 const nav = [
   { name: "Dashboard", icon: LayoutDashboard },
@@ -86,6 +72,7 @@ const nav = [
   { name: "Notifikasi", icon: BellRing },
   { name: "Organisasi", icon: Building2 },
   { name: "Pengguna", icon: Users },
+  { name: "Audit Log", icon: ShieldCheck },
 ];
 const fmt = (d: string) =>
   new Date(d + "T12:00:00").toLocaleDateString("id-ID", {
@@ -161,6 +148,9 @@ function Home({ auth }: { auth: AuthActions }) {
     [proposalBusy, setProposalBusy] = useState(false),
     [proposalError, setProposalError] = useState(""),
     [accountDeleteBusy, setAccountDeleteBusy] = useState(0),
+    [newAccountRole, setNewAccountRole] = useState<"Pengurus" | "Pembina" | "Anggota">("Pengurus"),
+    [audit, setAudit] = useState<Array<any>>([]),
+    [fileBusy, setFileBusy] = useState(0),
     [ready, setReady] = useState(false),
     [loadError, setLoadError] = useState(""),
     [eventSaving, setEventSaving] = useState(false),
@@ -219,6 +209,12 @@ function Home({ auth }: { auth: AuthActions }) {
       throw e;
     }
   }, []);
+  useEffect(() => {
+    if (page === "Audit Log" && role === "Admin")
+      api<{ entries: any[] }>("audit")
+        .then((d) => setAudit(d.entries))
+        .catch(() => {});
+  }, [page, role]);
   useEffect(() => {
     void refresh().catch(() => {});
     const timer = setInterval(() => {
@@ -342,6 +338,35 @@ function Home({ auth }: { auth: AuthActions }) {
       setToast("Keputusan proposal disimpan.");
     } catch (e) {
       setToast((e as Error).message);
+    }
+  }
+  async function uploadProposalFile(id: number, file: File) {
+    if (file.size > 4 * 1024 * 1024) {
+      setToast("Berkas maksimal 4 MB.");
+      return;
+    }
+    if (!["application/pdf", "image/png", "image/jpeg"].includes(file.type)) {
+      setToast("Format harus PDF, PNG, atau JPG.");
+      return;
+    }
+    setFileBusy(id);
+    try {
+      const buffer = await file.arrayBuffer();
+      let binary = "";
+      const bytes = new Uint8Array(buffer);
+      for (let i = 0; i < bytes.length; i += 8192)
+        binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      await api("proposals/" + id + "/file", "POST", {
+        filename: file.name,
+        mime: file.type,
+        data: btoa(binary),
+      });
+      setToast("Berkas proposal terlampir.");
+      await refresh();
+    } catch (e) {
+      setToast((e as Error).message);
+    } finally {
+      setFileBusy(0);
     }
   }
   async function removeProposal(id: number) {
@@ -532,19 +557,10 @@ function Home({ auth }: { auth: AuthActions }) {
             SIMORA<small>CONNECT. COLLABORATE. GROW.</small>
           </div>
         </a>
-        <div className="workspace">
-          <span className="workspace-icon">
-            <Building2 size={20} />
-          </span>
-          <div>
-            <strong>Ruang Organisasi</strong>
-            <small>Tahun akademik 2026/2027</small>
-          </div>
-        </div>
         <p className="nav-label">MENU UTAMA</p>
         <nav>
           {nav
-            .filter((n) => n.name !== "Pengguna" || role === "Admin")
+            .filter((n) => !["Pengguna", "Audit Log"].includes(n.name) || role === "Admin")
             .map((n) => (
               <button
                 key={n.name}
@@ -559,11 +575,6 @@ function Home({ auth }: { auth: AuthActions }) {
             ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="help-card">
-            <span>Ruang untuk bertumbuh.</span>
-            <p>Kelola kegiatan, wujudkan dampak bersama.</p>
-            <GraduationCap size={38} />
-          </div>
           <button
             className={
               "settings-nav " + (page === "Pengaturan" ? "active" : "")
@@ -612,7 +623,6 @@ function Home({ auth }: { auth: AuthActions }) {
             </span>
           </div>
           <div className="header-right">
-            <span className="semester">Semester Ganjil 2026</span>
             <button
               className="bell icon-button"
               aria-label="Notifikasi"
@@ -685,8 +695,10 @@ function Home({ auth }: { auth: AuthActions }) {
                             ? "Pendaftaran Kegiatan"
                             : page === "Proposal"
                               ? "Proposal Kegiatan"
-                              : page === "Notifikasi"
-                                ? "Notifikasi"
+                              : page === "Audit Log"
+                                ? "Audit Log"
+                                : page === "Notifikasi"
+                                  ? "Notifikasi"
                                 : page === "Profil"
                                   ? "Profil Saya"
                                   : "Pengaturan"}
@@ -706,8 +718,10 @@ function Home({ auth }: { auth: AuthActions }) {
                             ? "Daftar kegiatan yang dibuka dan pantau kuotanya."
                             : page === "Proposal"
                               ? "Ajukan dan tinjau proposal kegiatan organisasi."
-                              : page === "Notifikasi"
-                                ? "Pemberitahuan pendaftaran, proposal, dan presensi."
+                              : page === "Audit Log"
+                                ? "Jejak aktivitas sistem dan perubahan data."
+                                : page === "Notifikasi"
+                                  ? "Pemberitahuan pendaftaran, proposal, dan presensi."
                                 : "Sesuaikan pengalaman SIMORA untuk kebutuhanmu."}
               </p>
             </div>
@@ -1333,15 +1347,34 @@ function Home({ auth }: { auth: AuthActions }) {
                               </button>
                             </span>
                           ) : (
-                            (p.creatorName === auth.user.name || role === "Admin") &&
-                            p.status !== "disetujui" && (
-                              <button
-                                className="ghost small"
-                                onClick={() => void removeProposal(p.id)}
-                              >
-                                <Trash2 size={14} /> Hapus
-                              </button>
-                            )
+                            <span className="row-actions">
+                              {(p.creatorName === auth.user.name || role === "Admin") && (
+                                <label className="file-button">
+                                  <FileText size={14} />
+                                  {fileBusy === p.id ? "Mengunggah..." : "Berkas"}
+                                  <input
+                                    type="file"
+                                    accept="application/pdf,image/png,image/jpeg"
+                                    hidden
+                                    disabled={fileBusy === p.id}
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      if (f) void uploadProposalFile(p.id, f);
+                                      e.currentTarget.value = "";
+                                    }}
+                                  />
+                                </label>
+                              )}
+                              {(p.creatorName === auth.user.name || role === "Admin") &&
+                                p.status !== "disetujui" && (
+                                  <button
+                                    className="ghost small"
+                                    onClick={() => void removeProposal(p.id)}
+                                  >
+                                    <Trash2 size={14} /> Hapus
+                                  </button>
+                                )}
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -1393,6 +1426,50 @@ function Home({ auth }: { auth: AuthActions }) {
               {!notifs.length && (
                 <div className="empty">Belum ada notifikasi.</div>
               )}
+            </section>
+          )}
+
+          {page === "Audit Log" && role === "Admin" && (
+            <section className="panel">
+              <div className="panel-heading">
+                <div>
+                  <h3>Jejak aktivitas</h3>
+                  <p>Catatan tindakan yang mengubah data pada sistem.</p>
+                </div>
+                <span className="muted-note">{audit.length} entri terakhir</span>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Waktu</th>
+                      <th>Pelaku</th>
+                      <th>Aksi</th>
+                      <th>Sasaran</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {audit.map((a) => (
+                      <tr key={a.id}>
+                        <td>
+                          {new Date(a.createdAt).toLocaleString("id-ID", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })}
+                        </td>
+                        <td>
+                          <strong>{a.actor}</strong>
+                        </td>
+                        <td>
+                          <span className="chip">{a.action}</span>
+                        </td>
+                        <td className="muted-note">{a.target || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {!audit.length && <div className="empty">Belum ada aktivitas tercatat.</div>}
             </section>
           )}
 
@@ -1695,7 +1772,7 @@ function Home({ auth }: { auth: AuthActions }) {
             <div className="form-row">
               <label>
                 Organisasi
-                <select name="org">
+                <select name="org" required={newAccountRole !== "Anggota"}>
                   {organizations.map((o) => (
                     <option key={o.name}>{o.name}</option>
                   ))}
@@ -1856,12 +1933,15 @@ function Home({ auth }: { auth: AuthActions }) {
               await auth.createPengurus({
                 name: String(f.get("name")),
                 email: String(f.get("email")),
-                org: String(f.get("org")),
                 password: String(f.get("password")),
+                role: newAccountRole,
+                org: newAccountRole === "Anggota" ? undefined : String(f.get("org") || ""),
+                nim: String(f.get("nim") || "") || undefined,
+                phone: String(f.get("phone") || "") || undefined,
               });
               setAccountModal(false);
               setToast(
-                "Akun Pengurus berhasil dibuat. Akun dapat digunakan dari perangkat lain.",
+                "Akun " + newAccountRole + " berhasil dibuat dan dapat langsung digunakan.",
               );
             } catch (err) {
               setAccountError((err as Error).message);
@@ -1880,12 +1960,34 @@ function Home({ auth }: { auth: AuthActions }) {
             <input required name="name" maxLength={60} pattern=".*\S.*" />
           </label>
           <label>
-            Email Pengurus
+            Peran akun
+            <select
+              name="role"
+              value={newAccountRole}
+              onChange={(e) =>
+                setNewAccountRole(e.target.value as "Pengurus" | "Pembina" | "Anggota")
+              }
+            >
+              <option value="Pengurus">Pengurus</option>
+              <option value="Pembina">Pembina</option>
+              <option value="Anggota">Anggota</option>
+            </select>
+          </label>
+          <label>
+            Email
             <input required name="email" type="email" maxLength={100} />
           </label>
           <label>
+            NIM / NIP
+            <input name="nim" maxLength={24} />
+          </label>
+          <label>
+            Nomor WhatsApp
+            <input name="phone" maxLength={24} />
+          </label>
+          <label>
             Organisasi
-            <select name="org">
+            <select name="org" required={newAccountRole !== "Anggota"}>
               {organizations.map((o) => (
                 <option key={o.name}>{o.name}</option>
               ))}
@@ -1915,8 +2017,9 @@ function Home({ auth }: { auth: AuthActions }) {
             />
           </label>
           <div className="demo-note">
-            Role akun ditetapkan sebagai Pengurus. Akun disimpan di database dan
-            dapat digunakan oleh pemilik akun.
+            {newAccountRole === "Anggota"
+              ? "Akun anggota tidak terikat organisasi."
+              : "Akun " + newAccountRole + " wajib terikat pada satu organisasi."}
           </div>
           <div className="modal-actions">
             <button

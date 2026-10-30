@@ -13,7 +13,8 @@ import {
   verifyCheckIn,
 } from "../lib/simora/attendance.ts";
 const roles = z.enum(["Admin", "Pengurus", "Pembina", "Anggota"]);
-const org = z.enum(["HIMSI", "BEM", "UKM Seni", "Mapala"]);
+export const ORGS = ["BEM","SENAT","HMTIF","HMSIF","HMILKOM","HMM","HMPOL","HMTL","HMITP","HMTI"] as const;
+const org = z.enum(ORGS);
 const email = z
   .string()
   .trim()
@@ -277,11 +278,15 @@ export function createService(db: Database) {
             email,
             password,
             org: org.optional(),
-            role: z.enum(["Pengurus", "Pembina"]),
+            role: z.enum(["Pengurus", "Pembina", "Anggota"]),
             nim: z.string().trim().max(24).optional(),
             phone: z.string().trim().max(24).optional(),
             division: z.string().trim().max(60).optional(),
           })
+          .refine(
+            (v) => v.role === "Anggota" || Boolean(v.org),
+            "Pilih organisasi untuk akun Pengurus atau Pembina.",
+          )
           .parse(await body(request));
         const hashed = await hashPassword(data.password);
         const created = await db.transaction(async (sql) => {
@@ -703,6 +708,105 @@ export function createService(db: Database) {
             [actor.id],
           );
         return json({ ok: true });
+      }
+
+      // ---------- Audit log (Admin) ----------
+      if (path === "audit" && method === "GET") {
+        admin(actor);
+        const limitParam = Number(url.searchParams.get("limit") || 100);
+        const rows = await db.query(
+          "SELECT a.id,a.action,a.target,a.detail,a.created_at,u.name AS actor FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id ORDER BY a.created_at DESC LIMIT $1",
+          [Math.min(500, Math.max(1, limitParam))],
+        );
+        return json({
+          entries: rows.rows.map((r: Row) => ({
+            id: Number(r.id),
+            action: r.action,
+            target: r.target,
+            detail: r.detail,
+            actor: r.actor || "Sistem",
+            createdAt: new Date(r.created_at).getTime(),
+          })),
+        });
+      }
+
+      // ---------- Berkas proposal ----------
+      if (/^proposals\/\d+\/file$/.test(path) && method === "POST") {
+        manager(actor);
+        const id = numeric(path.split("/")[1]);
+        const data = z
+          .object({
+            filename: z.string().trim().min(1).max(160),
+            mime: z.enum(["application/pdf", "image/png", "image/jpeg"]),
+            data: z.string().min(10).max(6_000_000),
+          })
+          .parse(await body(request));
+        const size = Math.floor((data.data.length * 3) / 4);
+        if (size > 4 * 1024 * 1024) fail(413, "Berkas maksimal 4 MB.");
+        const prop = (await db.query("SELECT * FROM proposals WHERE id=$1", [id])).rows[0];
+        if (!prop) fail(404, "Proposal tidak ditemukan.");
+        if (Number(prop.created_by) !== Number(actor.id) && actor.role !== "Admin")
+          fail(403, "Hanya pengaju atau Admin yang dapat melampirkan berkas.");
+        await db.query(
+          "INSERT INTO proposal_files(proposal_id,filename,mime,size,data) VALUES($1,$2,$3,$4,$5)",
+          [id, data.filename, data.mime, size, data.data],
+        );
+        await audit(db, actor, "proposal_file", String(id));
+        return json({ ok: true }, 201);
+      }
+      if (/^proposals\/\d+\/file$/.test(path) && method === "GET") {
+        const id = numeric(path.split("/")[1]);
+        const f = (
+          await db.query(
+            "SELECT * FROM proposal_files WHERE proposal_id=$1 ORDER BY id DESC LIMIT 1",
+            [id],
+          )
+        ).rows[0];
+        if (!f) fail(404, "Berkas tidak ditemukan.");
+        return new Response(Buffer.from(f.data, "base64"), {
+          status: 200,
+          headers: {
+            "Content-Type": f.mime,
+            "Content-Disposition": `inline; filename="${f.filename.replace(/"/g, "")}"`,
+            "Cache-Control": "no-store",
+          },
+        });
+      }
+
+      // ---------- Pengingat H-1 (cron, dipanggil scheduler) ----------
+      if (path === "cron/reminder" && method === "POST") {
+        const secret = request.headers.get("x-cron-key") || url.searchParams.get("key") || "";
+        if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET)
+          fail(403, "Kunci cron tidak valid.");
+        const rows = await db.query(
+          `SELECT e.id, e.name, e.date, e.time, e.location,
+                  (SELECT COUNT(*)::int FROM registrations r WHERE r.event_id=e.id AND r.status<>'batal') AS terdaftar
+             FROM events e
+            WHERE e.status='Mendatang'
+              AND e.date = CURRENT_DATE + 1`,
+        );
+        let sent = 0;
+        for (const e of rows.rows) {
+          const peserta = await db.query(
+            "SELECT u.id,u.name,u.email FROM users u JOIN registrations r ON r.user_id=u.id WHERE r.event_id=$1 AND r.status<>'batal'",
+            [e.id],
+          );
+          for (const u of peserta.rows) {
+            const msg =
+              "Pengingat: " + e.name + " besok " + String(e.date).slice(0, 10) +
+              " pukul " + String(e.time).slice(0, 5) + " di " + e.location + ".";
+            await db.query(
+              "INSERT INTO notifications(user_id,event_id,kind,message) VALUES($1,$2,'pengingat',$3)",
+              [u.id, e.id, msg],
+            );
+            await db.query(
+              "INSERT INTO mail_log(recipient,subject,kind,status) VALUES($1,$2,'pengingat','log')",
+              [u.email, "Pengingat H-1: " + e.name],
+            );
+            sent++;
+          }
+        }
+        return json({ ok: true, events: rows.rows.length, sent });
       }
 
       return json({ error: "Endpoint tidak ditemukan." }, 404);

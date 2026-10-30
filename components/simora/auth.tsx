@@ -27,8 +27,11 @@ export type AuthActions = {
   createPengurus: (data: {
     name: string;
     email: string;
-    org: string;
     password: string;
+    role: "Pengurus" | "Pembina" | "Anggota";
+    org?: string;
+    nim?: string;
+    phone?: string;
   }) => Promise<User>;
   changeRole: (id: number, role: string) => Promise<void>;
   updateProfile: (name: string, email: string) => Promise<void>;
@@ -107,7 +110,6 @@ export default function AuthGate({
           password,
           nim: String(f.get("nim")),
           phone: String(f.get("phone")),
-          division: String(f.get("division")),
         });
         setMode("login");
         setRole("Anggota");
@@ -131,8 +133,11 @@ export default function AuthGate({
   async function createPengurus(data: {
     name: string;
     email: string;
-    org: string;
     password: string;
+    role: "Pengurus" | "Pembina" | "Anggota";
+    org?: string;
+    nim?: string;
+    phone?: string;
   }) {
     const created = await api<User>("users", "POST", data);
     await refresh();
@@ -230,14 +235,11 @@ export default function AuthGate({
             <LockKeyhole size={23} />
           </span>
           <div className="eyebrow">SELAMAT DATANG DI SIMORA</div>
-          <h2>
-            {mode === "login" ? "Masuk ke ruangmu" : "Mulai perjalananmu"}
-          </h2>
-          <p className="auth-intro">
-            {mode === "login"
-              ? "Pilih peran dan masuk untuk melanjutkan aktivitasmu."
-              : "Daftar sebagai Anggota dan jadi bagian dari kolaborasi."}
-          </p>
+          {mode === "register" && (
+            <p className="auth-intro">
+              Daftar sebagai Anggota dan jadi bagian dari kolaborasi.
+            </p>
+          )}
           {mode === "login" ? (
             <div className="role-picker" aria-label="Pilih peran login">
               {(
@@ -267,7 +269,7 @@ export default function AuthGate({
               <Users size={19} />
               <span>
                 Pendaftaran hanya untuk <strong>Anggota</strong>.
-                <small>Akun Pengurus dibuat oleh Admin organisasi.</small>
+                <small>Akun pengurus dan pembina dibuat oleh Admin.</small>
               </span>
             </div>
           )}
@@ -316,20 +318,7 @@ export default function AuthGate({
                     maxLength={24}
                   />
                 </label>
-                <label>
-                  Divisi
-                  <select name="division">
-                    {[
-                      "Acara",
-                      "Dana Usaha",
-                      "Hubungan Masyarakat",
-                      "Sumber Daya Manusia",
-                      "Minat dan Bakat",
-                    ].map((o) => (
-                      <option key={o}>{o}</option>
-                    ))}
-                  </select>
-                </label>
+
               </>
             )}
             <label>
@@ -394,7 +383,7 @@ export default function AuthGate({
               {busy
                 ? "Memproses..."
                 : mode === "login"
-                  ? "Masuk sebagai " + role
+                  ? "Masuk"
                   : "Daftar sebagai Anggota"}
               {!busy && <ArrowRight size={17} />}
             </button>
