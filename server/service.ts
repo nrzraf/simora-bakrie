@@ -237,6 +237,42 @@ export function createService(db: Database) {
           "Set-Cookie": `simora_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}`,
         });
       }
+      // ---------- Pengingat H-1 (cron, dipanggil scheduler) ----------
+      if (path === "cron/reminder" && method === "POST") {
+        const secret = request.headers.get("x-cron-key") || url.searchParams.get("key") || "";
+        if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET)
+          fail(403, "Kunci cron tidak valid.");
+        const rows = await db.query(
+          `SELECT e.id, e.name, e.date, e.time, e.location,
+                  (SELECT COUNT(*)::int FROM registrations r WHERE r.event_id=e.id AND r.status<>'batal') AS terdaftar
+             FROM events e
+            WHERE e.status='Mendatang'
+              AND e.date = CURRENT_DATE + 1`,
+        );
+        let sent = 0;
+        for (const e of rows.rows) {
+          const peserta = await db.query(
+            "SELECT u.id,u.name,u.email FROM users u JOIN registrations r ON r.user_id=u.id WHERE r.event_id=$1 AND r.status<>'batal'",
+            [e.id],
+          );
+          for (const u of peserta.rows) {
+            const msg =
+              "Pengingat: " + e.name + " besok " + String(e.date).slice(0, 10) +
+              " pukul " + String(e.time).slice(0, 5) + " di " + e.location + ".";
+            await db.query(
+              "INSERT INTO notifications(user_id,event_id,kind,message) VALUES($1,$2,'pengingat',$3)",
+              [u.id, e.id, msg],
+            );
+            await db.query(
+              "INSERT INTO mail_log(recipient,subject,kind,status) VALUES($1,$2,'pengingat','log')",
+              [u.email, "Pengingat H-1: " + e.name],
+            );
+            sent++;
+          }
+        }
+        return json({ ok: true, events: rows.rows.length, sent });
+      }
+
       const actor = await user(request);
       if (path === "auth/me" && method === "GET")
         return json({ user: publicUser(actor), accounts: await people(actor) });
@@ -773,42 +809,6 @@ export function createService(db: Database) {
             "Cache-Control": "no-store",
           },
         });
-      }
-
-      // ---------- Pengingat H-1 (cron, dipanggil scheduler) ----------
-      if (path === "cron/reminder" && method === "POST") {
-        const secret = request.headers.get("x-cron-key") || url.searchParams.get("key") || "";
-        if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET)
-          fail(403, "Kunci cron tidak valid.");
-        const rows = await db.query(
-          `SELECT e.id, e.name, e.date, e.time, e.location,
-                  (SELECT COUNT(*)::int FROM registrations r WHERE r.event_id=e.id AND r.status<>'batal') AS terdaftar
-             FROM events e
-            WHERE e.status='Mendatang'
-              AND e.date = CURRENT_DATE + 1`,
-        );
-        let sent = 0;
-        for (const e of rows.rows) {
-          const peserta = await db.query(
-            "SELECT u.id,u.name,u.email FROM users u JOIN registrations r ON r.user_id=u.id WHERE r.event_id=$1 AND r.status<>'batal'",
-            [e.id],
-          );
-          for (const u of peserta.rows) {
-            const msg =
-              "Pengingat: " + e.name + " besok " + String(e.date).slice(0, 10) +
-              " pukul " + String(e.time).slice(0, 5) + " di " + e.location + ".";
-            await db.query(
-              "INSERT INTO notifications(user_id,event_id,kind,message) VALUES($1,$2,'pengingat',$3)",
-              [u.id, e.id, msg],
-            );
-            await db.query(
-              "INSERT INTO mail_log(recipient,subject,kind,status) VALUES($1,$2,'pengingat','log')",
-              [u.email, "Pengingat H-1: " + e.name],
-            );
-            sent++;
-          }
-        }
-        return json({ ok: true, events: rows.rows.length, sent });
       }
 
       return json({ error: "Endpoint tidak ditemukan." }, 404);
