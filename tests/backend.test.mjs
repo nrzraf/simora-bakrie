@@ -449,6 +449,23 @@ test("SQL-backed API integration with independent user sessions", async (t) => {
     },
   );
   await t.test(
+    "login tanpa memilih peran memakai peran akun sebenarnya",
+    async () => {
+      const noRole = await req("auth/login", "POST", {
+        email: "admin@test.local",
+        password: pwd,
+      });
+      assert.equal(noRole.status, 200);
+      assert.equal(noRole.body.user.role, "Admin");
+      const wrongPw = await req("auth/login", "POST", {
+        email: "admin@test.local",
+        password: "SalahSekali123",
+      });
+      assert.equal(wrongPw.status, 401);
+    },
+  );
+
+  await t.test(
     "RSVP enforces capacity and blocks duplicate registration",
     async () => {
       admin = await req("auth/login", "POST", { email: "admin@test.local", password: pwd, role: "Admin" });

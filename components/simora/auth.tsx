@@ -119,7 +119,7 @@ export default function AuthGate({
         const r = await api<{ user: User; accounts: User[] }>(
           "auth/login",
           "POST",
-          { email, password, role },
+          { email, password },
         );
         setCurrent(r.user);
         setAccounts(r.accounts);
@@ -240,31 +240,7 @@ export default function AuthGate({
               Daftar sebagai Anggota dan jadi bagian dari kolaborasi.
             </p>
           )}
-          {mode === "login" ? (
-            <div className="role-picker" aria-label="Pilih peran login">
-              {(
-                [
-                  { name: "Anggota", icon: Users },
-                  { name: "Pengurus", icon: Building2 },
-  { name: "Pembina", icon: ShieldCheck },
-                  { name: "Admin", icon: ShieldCheck },
-                ] as const
-              ).map((r) => (
-                <button
-                  aria-pressed={role === r.name}
-                  key={r.name}
-                  className={role === r.name ? "selected" : ""}
-                  onClick={() => {
-                    setRole(r.name);
-                    setError("");
-                  }}
-                >
-                  <r.icon size={21} />
-                  {r.name}
-                </button>
-              ))}
-            </div>
-          ) : (
+          {mode === "register" && (
             <div className="register-info">
               <Users size={19} />
               <span>

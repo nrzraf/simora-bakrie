@@ -202,7 +202,11 @@ export function createService(db: Database) {
       if (path === "auth/login" && method === "POST") {
         await limit("login-ip:" + ip, 40, 900);
         const data = z
-          .object({ email, password: z.string().min(1).max(128), role: roles })
+          .object({
+            email,
+            password: z.string().min(1).max(128),
+            role: roles.optional(),
+          })
           .parse(await body(request));
         await limit("login-account:" + data.email, 15, 900);
         const u = (
@@ -214,8 +218,9 @@ export function createService(db: Database) {
           data.password,
           u?.password_hash || dummy,
         );
-        if (!u || !valid || u.role !== data.role)
-          fail(401, "Email, kata sandi, atau peran tidak sesuai.");
+        // peran opsional: bila tidak dikirim, peran diambil dari akun
+        if (!u || !valid || (data.role && u.role !== data.role))
+          fail(401, "Email atau kata sandi tidak sesuai.");
         if (u.status === "nonaktif")
           fail(403, "Akun Anda dinonaktifkan. Hubungi Admin.");
         const token = newToken();
