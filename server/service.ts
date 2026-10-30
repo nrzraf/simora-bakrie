@@ -158,10 +158,12 @@ export function createService(db: Database) {
         const allowed = process.env.APP_URL
           ? new URL(process.env.APP_URL).origin
           : url.origin;
-        if (!origin || origin !== allowed)
+        if (!path.startsWith("cron/") && (!origin || origin !== allowed))
           fail(403, "Origin permintaan tidak diizinkan.");
+        const noBody = path.startsWith("cron/");
         if (
           method !== "DELETE" &&
+          !noBody &&
           !request.headers.get("content-type")?.includes("application/json")
         )
           fail(415, "Gunakan application/json.");
