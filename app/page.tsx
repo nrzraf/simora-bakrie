@@ -51,6 +51,42 @@ type Event = {
   capacity: number;
   description: string;
 };
+const activityMonth = new Intl.DateTimeFormat("id-ID", {
+  month: "short",
+  timeZone: "UTC",
+});
+const activityMonthAndYear = new Intl.DateTimeFormat("id-ID", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const jakartaMonth = new Intl.DateTimeFormat("id-ID", {
+  year: "numeric",
+  month: "numeric",
+  timeZone: "Asia/Jakarta",
+});
+
+function activityByMonth(events: Event[], period: number) {
+  const current = jakartaMonth.formatToParts(new Date());
+  const year = Number(current.find((part) => part.type === "year")?.value);
+  const month = Number(current.find((part) => part.type === "month")?.value);
+  const counts = new Map<string, number>();
+  for (const event of events) {
+    const key = event.date.slice(0, 7);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return Array.from({ length: period }, (_, index) => {
+    const date = new Date(Date.UTC(year, month - period + index, 1));
+    const key = date.toISOString().slice(0, 7);
+    return {
+      key,
+      label: activityMonth.format(date),
+      fullLabel: activityMonthAndYear.format(date),
+      count: counts.get(key) ?? 0,
+    };
+  });
+}
+
 const organizations = [
   { name: "BEM", full: "Badan Eksekutif Mahasiswa", color: "rose", desc: "Wadah aspirasi dan perubahan mahasiswa." },
   { name: "SENAT", full: "Senat Mahasiswa", color: "blue", desc: "Pengawasan dan advokasi kebijakan mahasiswa." },
@@ -164,13 +200,24 @@ function Home({ auth }: { auth: AuthActions }) {
     [toast, setToast] = useState(""),
     [notifications, setNotifications] = useState(false),
     [selectedEvent, setSelectedEvent] = useState(1),
-    [period, setPeriod] = useState("6 bulan terakhir"),
+    [period, setPeriod] = useState(6),
     [profile, setProfile] = useState({
-      name: "Biko Waffie",
-      email: "biko@mahasiswa.ac.id",
+      name: auth.user.name,
+      email: auth.user.email,
     });
   const role = auth.user.role;
   const accountDialogRef = useRef<HTMLDialogElement>(null);
+  const openNavRef = useRef<HTMLButtonElement>(null);
+  const closeNavRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!mobile) return;
+    const opener = openNavRef.current;
+    const focusFrame = requestAnimationFrame(() => closeNavRef.current?.focus());
+    return () => {
+      cancelAnimationFrame(focusFrame);
+      opener?.focus();
+    };
+  }, [mobile]);
   useEffect(() => {
     setProfile({ name: auth.user.name, email: auth.user.email });
     setUsers(auth.accounts);
@@ -243,6 +290,9 @@ function Home({ auth }: { auth: AuthActions }) {
     setStatus("Semua status");
     setMobile(false);
   };
+  const chartMonths = page === "Dashboard" ? activityByMonth(events, period) : [];
+  const chartPeak = Math.max(0, ...chartMonths.map((month) => month.count));
+  const chartStep = Math.ceil(chartPeak / 3);
   const filtered = events.filter(
     (e) =>
       (e.name + " " + e.org).toLowerCase().includes(query.toLowerCase()) &&
@@ -541,56 +591,81 @@ function Home({ auth }: { auth: AuthActions }) {
           onClick={() => setMobile(false)}
         />
       )}
-      <aside className={"sidebar " + (mobile ? "mobile-open" : "")}>
-        <a
-          className="brand"
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            go("Dashboard");
-          }}
-        >
-          <span className="brand-icon">
-            <GraduationCap size={25} />
-          </span>
-          <div>
-            SIMORA
-          </div>
-        </a>
-        <nav>
+      <aside
+        className={"sidebar " + (mobile ? "mobile-open" : "")}
+        id="app-sidebar"
+        onKeyDown={(event) => {
+          if (mobile && event.key === "Escape") setMobile(false);
+        }}
+      >
+        <div className="sidebar-head">
+          <a
+            className="brand"
+            href="#"
+            aria-label="SIMORA, kembali ke Dashboard"
+            onClick={(event) => {
+              event.preventDefault();
+              go("Dashboard");
+            }}
+          >
+            <span className="brand-icon">
+              <GraduationCap size={24} aria-hidden="true" />
+            </span>
+            <span className="brand-name">SIMORA</span>
+          </a>
+          <button
+            ref={closeNavRef}
+            className="sidebar-close icon-button"
+            type="button"
+            aria-label="Tutup menu"
+            onClick={() => setMobile(false)}
+          >
+            <X size={20} aria-hidden="true" />
+          </button>
+        </div>
+        <nav aria-label="Menu utama">
           {nav
             .filter((n) => !["Pengguna", "Audit Log"].includes(n.name) || role === "Admin")
             .map((n) => (
               <button
                 key={n.name}
-                title={n.name}
-                className={page === n.name ? "active" : ""}
+                aria-label={n.name}
+                aria-current={page === n.name ? "page" : undefined}
+                title={collapsed && !mobile ? n.name : undefined}
                 onClick={() => go(n.name)}
               >
-                <n.icon size={20} />
+                <n.icon size={19} aria-hidden="true" />
                 <span>{n.name}</span>
-                {n.name === "Kegiatan" && <b>{events.length}</b>}
               </button>
             ))}
         </nav>
         <div className="sidebar-bottom">
           <button
-            className={
-              "settings-nav " + (page === "Pengaturan" ? "active" : "")
-            }
+            className="settings-nav"
+            aria-label="Pengaturan"
+            aria-current={page === "Pengaturan" ? "page" : undefined}
+            title={collapsed && !mobile ? "Pengaturan" : undefined}
             onClick={() => go("Pengaturan")}
           >
-            <Settings size={20} />
+            <Settings size={19} aria-hidden="true" />
             <span>Pengaturan</span>
           </button>
           <button
             className="settings-nav"
+            aria-label="Keluar"
+            title={collapsed && !mobile ? "Keluar" : undefined}
             onClick={() => void auth.logout().catch((e) => setToast(e.message))}
           >
-            <LogOut size={20} />
+            <LogOut size={19} aria-hidden="true" />
             <span>Keluar</span>
           </button>
-          <button className="user-profile" onClick={() => go("Profil")}>
+          <button
+            className="user-profile"
+            aria-label={`Profil ${profile.name}`}
+            aria-current={page === "Profil" ? "page" : undefined}
+            title={collapsed && !mobile ? "Profil" : undefined}
+            onClick={() => go("Profil")}
+          >
             <Avatar name={profile.name} />
             <div>
               <strong>{profile.name}</strong>
@@ -605,20 +680,25 @@ function Home({ auth }: { auth: AuthActions }) {
           <div className="header-left">
             <button
               className="icon-button desktop-toggle"
-              aria-label="Ciutkan sidebar"
+              aria-label={collapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
+              aria-controls="app-sidebar"
+              aria-expanded={!collapsed}
               onClick={() => setCollapsed(!collapsed)}
             >
               <Menu size={20} />
             </button>
             <button
+              ref={openNavRef}
               className="icon-button mobile-toggle"
               aria-label="Buka navigasi"
+              aria-controls="app-sidebar"
+              aria-expanded={mobile}
               onClick={() => setMobile(true)}
             >
               <Menu size={20} />
             </button>
             <span>
-              Workspace <ChevronRight size={14} /> <strong>{page}</strong>
+              Ruang kerja <ChevronRight size={14} aria-hidden="true" /> <strong>{page}</strong>
             </span>
           </div>
           <div className="header-right">
@@ -678,10 +758,9 @@ function Home({ auth }: { auth: AuthActions }) {
           {!ready && <p className="demo-note">Memuat data dari server...</p>}
           <div className="page-heading">
             <div>
-              <div className="eyebrow">YOUR CAMPUS, CONNECTED</div>
               <h1>
                 {page === "Dashboard"
-                  ? "Selamat datang, " + profile.name.split(" ")[0] + " 👋"
+                  ? "Selamat datang, " + profile.name.split(" ")[0]
                   : page === "Kegiatan"
                     ? "Manajemen Kegiatan"
                     : page === "Organisasi"
@@ -704,7 +783,7 @@ function Home({ auth }: { auth: AuthActions }) {
               </h1>
               <p>
                 {page === "Dashboard"
-                  ? "Setiap kolaborasi dimulai dari sini. Yuk, lihat aktivitas organisasimu."
+                  ? "Ringkasan kegiatan, organisasi, dan kehadiran."
                   : page === "Kegiatan"
                     ? "Rencanakan, kelola, dan pantau setiap kegiatan dalam satu tempat."
                     : page === "Organisasi"
@@ -738,51 +817,14 @@ function Home({ auth }: { auth: AuthActions }) {
           </div>
           {page === "Dashboard" && (
             <>
-              <section className="hero">
+              <section className="hero" aria-labelledby="dashboard-activities">
                 <div>
-                  <span className="hero-label">
-                    <span /> RUANG KOLABORASI MAHASISWA
-                  </span>
-                  <h2>
-                    Ide besar dimulai
-                    <br />
-                    dari langkah bersama.
-                  </h2>
-                  <p>
-                    Satukan ide, hidupkan kegiatan, dan ciptakan
-                    <br className="desktop" /> pengalaman kampus yang lebih
-                    bermakna.
-                  </p>
-                  <button onClick={() => go("Kegiatan")}>
-                    Jelajahi kegiatan <ArrowUpRight size={18} />
-                  </button>
+                  <h2 id="dashboard-activities">Kegiatan kampus</h2>
+                  <p>Lihat jadwal, lokasi, dan status kegiatan mahasiswa.</p>
                 </div>
-                <div className="hero-art" aria-hidden="true">
-                  <div className="orbit orbit-one" />
-                  <div className="orbit orbit-two" />
-                  <div className="art-center">
-                    <GraduationCap size={69} strokeWidth={1.2} />
-                  </div>
-                  <div className="floating float-one">
-                    <span className="green">
-                      <Check size={19} />
-                    </span>
-                    <div>
-                      Kegiatan terorganisir
-                      <small>Lebih mudah, lebih terarah</small>
-                    </div>
-                  </div>
-                  <div className="floating float-two">
-                    <span className="rose">
-                      <Users size={22} />
-                    </span>
-                    <div>
-                      Bertumbuh bersama<small>Satu ruang, banyak peluang</small>
-                    </div>
-                  </div>
-                  <span className="spark spark-one">✦</span>
-                  <span className="spark spark-two">✦</span>
-                </div>
+                <button onClick={() => go("Kegiatan")}>
+                  Lihat kegiatan <ArrowUpRight size={17} aria-hidden="true" />
+                </button>
               </section>
               <div className="stats">
                 {[
@@ -800,14 +842,12 @@ function Home({ auth }: { auth: AuthActions }) {
                     value: organizations.length,
                     icon: Building2,
                     color: "blue",
-                    note: "Terhubung dalam satu ruang",
                   },
                   {
                     label: "Total anggota",
                     value: users.filter((u) => u.role === "Anggota").length,
                     icon: Users,
                     color: "purple",
-                    note: "Aktif berkolaborasi",
                   },
                   {
                     label: "Tingkat kehadiran",
@@ -825,9 +865,7 @@ function Home({ auth }: { auth: AuthActions }) {
                       </span>
                     </div>
                     <strong>{s.value}</strong>
-                    <small>
-                      <span className="trend">↗</span> {s.note}
-                    </small>
+                    {s.note && <small>{s.note}</small>}
                   </div>
                 ))}
               </div>
@@ -836,52 +874,58 @@ function Home({ auth }: { auth: AuthActions }) {
                   <div className="panel-heading">
                     <div>
                       <h3>Aktivitas kegiatan</h3>
-                      <p>Perjalanan kolaborasi sepanjang semester</p>
+                      <p>Berdasarkan tanggal kegiatan</p>
                     </div>
                     <select
                       aria-label="Periode grafik"
                       value={period}
-                      onChange={(e) => setPeriod(e.target.value)}
+                      onChange={(e) => setPeriod(Number(e.target.value))}
                     >
-                      <option>6 bulan terakhir</option>
-                      <option>3 bulan terakhir</option>
+                      <option value={6}>6 bulan terakhir</option>
+                      <option value={3}>3 bulan terakhir</option>
                     </select>
                   </div>
-                  <div className="chart-legend">
-                    <i />
-                    Jumlah kegiatan <span>Data demo 2026</span>
-                  </div>
-                  <div className="chart">
-                    <div className="axis">
-                      <span>6</span>
-                      <span>4</span>
-                      <span>2</span>
-                      <span>0</span>
-                    </div>
-                    <div className="bars">
-                      {(period === "6 bulan terakhir"
-                        ? ["Mei", "Jun", "Jul", "Agu", "Sep", "Okt"]
-                        : ["Agu", "Sep", "Okt"]
-                      ).map((m, i) => {
-                        const values =
-                          period === "6 bulan terakhir"
-                            ? [2, 3, 2, 4, 3, 3]
-                            : [4, 3, 3];
-                        return (
-                          <div className="bar-col" key={m}>
+                  {!ready ? (
+                    <p className="dashboard-empty" role="status">Memuat aktivitas kegiatan…</p>
+                  ) : chartPeak > 0 ? (
+                    <div
+                      className="chart"
+                      role="group"
+                      aria-label="Jumlah kegiatan per bulan"
+                      key={chartMonths.map(({ key, count }) => `${key}:${count}`).join("|")}
+                    >
+                      <div className="axis" aria-hidden="true">
+                        {[3, 2, 1, 0].map((tick) => (
+                          <span key={tick}>{tick * chartStep}</span>
+                        ))}
+                      </div>
+                      <div className="bars">
+                        {chartMonths.map((month) => (
+                          <div
+                            className="bar-col"
+                            key={month.key}
+                            role="img"
+                            aria-label={`${month.fullLabel}, ${month.count} kegiatan`}
+                            title={`${month.fullLabel}, ${month.count} kegiatan`}
+                          >
                             <div
                               className="bar"
-                              style={{ height: (values[i] / 6) * 100 + "%" }}
-                              title={m + ": " + values[i] + " kegiatan"}
+                              style={{ height: `${(month.count / (chartStep * 3)) * 100}%` }}
                             >
-                              <span>{values[i]}</span>
+                              <span>{month.count}</span>
                             </div>
-                            <small>{m}</small>
+                            <small>{month.label}</small>
                           </div>
-                        );
-                      })}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <p className="dashboard-empty" role="status">
+                      {loadError
+                        ? "Aktivitas kegiatan belum bisa dimuat."
+                        : "Belum ada kegiatan pada periode ini."}
+                    </p>
+                  )}
                 </section>
                 <section className="panel announcements">
                   <div className="panel-heading">
@@ -930,7 +974,6 @@ function Home({ auth }: { auth: AuthActions }) {
                 <div className="panel-heading">
                   <div>
                     <h3>Kegiatan terdekat</h3>
-                    <p>Jangan lewatkan kesempatan untuk terlibat</p>
                   </div>
                   <button
                     className="text-button"
@@ -939,7 +982,9 @@ function Home({ auth }: { auth: AuthActions }) {
                     Lihat semua <ArrowRight size={16} />
                   </button>
                 </div>
-                <EventTable compact />
+                {events.length ? <EventTable compact /> : (
+                  <p className="dashboard-empty">Belum ada kegiatan yang tercatat.</p>
+                )}
               </section>
             </>
           )}

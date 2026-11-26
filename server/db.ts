@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, types } from "pg";
 import type { Database, SQL } from "./types.ts";
 const shared = globalThis as unknown as { simoraPool?: Pool };
 function pool() {
@@ -7,6 +7,15 @@ function pool() {
   if (!shared.simoraPool) {
     shared.simoraPool = new Pool({
       connectionString: process.env.DATABASE_URL,
+      types: {
+        getTypeParser(oid, format) {
+          // SQL DATE is a calendar day and must not shift when serialized to UTC.
+          if (oid === types.builtins.DATE && format !== "binary") {
+            return (value: string) => value;
+          }
+          return types.getTypeParser(oid, format);
+        },
+      },
       // transaction pooler (port 6543) menangani ratusan klien,
       // berbeda dengan session pooler yang dibatasi 15 koneksi.
       max: Number(process.env.DB_POOL_MAX || 5),

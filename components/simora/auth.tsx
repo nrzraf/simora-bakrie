@@ -2,14 +2,12 @@
 import { useState, useEffect, ReactNode } from "react";
 import {
   GraduationCap,
-  ShieldCheck,
   Users,
-  Building2,
+  ChevronDown,
+  CircleHelp,
   ArrowRight,
   Eye,
   EyeOff,
-  CheckCircle2,
-  LockKeyhole,
 } from "lucide-react";
 import { api } from "../../lib/api";
 export type Role = "Admin" | "Pengurus" | "Pembina" | "Anggota";
@@ -45,12 +43,10 @@ export default function AuthGate({
     [current, setCurrent] = useState<User | null>(null),
     [ready, setReady] = useState(false),
     [mode, setMode] = useState<"login" | "register">("login"),
-    [role, setRole] = useState<Role>("Anggota"),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [show, setShow] = useState(false);
-  const fatal = false;
   async function refresh() {
     const r = await api<{ user: User; accounts: User[] }>("auth/me");
     setCurrent(r.user);
@@ -112,7 +108,6 @@ export default function AuthGate({
           phone: String(f.get("phone")),
         });
         setMode("login");
-        setRole("Anggota");
         setShow(false);
         setNotice("Pendaftaran berhasil! Silakan masuk sebagai Anggota.");
       } else {
@@ -172,81 +167,30 @@ export default function AuthGate({
       <section className="auth-story">
         <a className="auth-brand" href="/login">
           <span>
-            <GraduationCap size={28} />
+            <GraduationCap size={23} aria-hidden="true" />
           </span>
           SIMORA
         </a>
-        <div className="auth-story-content">
-          <div className="auth-kicker">SATU RUANG. BANYAK PELUANG.</div>
-          <h1>
-            Terhubung.
-            <br />
-            Berkolaborasi.
-            <br />
-            <em>Bertumbuh bersama.</em>
-          </h1>
-          <p>
-            Ruang untuk menghidupkan ide, mengelola kegiatan, dan menciptakan
-            pengalaman organisasi yang bermakna.
+        <div className="auth-story-copy">
+          <p className="auth-story-title">Organisasi dan kegiatan kampus.</p>
+          <p className="auth-story-note">
+            Kelola kegiatan, ajukan proposal, dan pantau kehadiran dalam satu portal.
           </p>
-          <div className="auth-illustration" aria-hidden="true">
-            <div className="auth-ring" />
-            <div className="auth-symbol">
-              <GraduationCap size={75} strokeWidth={1.3} />
-            </div>
-            <div className="auth-float">
-              <CheckCircle2 size={22} />
-              <span>
-                Kolaborasi jadi lebih mudah
-                <small>Dari ide hingga aksi nyata</small>
-              </span>
-            </div>
-          </div>
-          <div className="auth-benefits">
-            <span>
-              <CheckCircle2 size={15} /> Kegiatan terorganisir
-            </span>
-            <span>
-              <CheckCircle2 size={15} /> Kehadiran terpantau
-            </span>
-          </div>
         </div>
-        <small>© 2026 SIMORA · Ruang kolaborasi mahasiswa</small>
+        <div className="auth-art" aria-hidden="true" />
       </section>
-      <section className="auth-right">
-        <div className="auth-top">
-          <span>
-            {mode === "login" ? "Belum punya akun?" : "Sudah punya akun?"}
-          </span>
-          <button
-            onClick={() => {
-              setMode(mode === "login" ? "register" : "login");
-              setError("");
-              setNotice("");
-              setShow(false);
-            }}
-          >
-            {mode === "login" ? "Daftar anggota" : "Masuk akun"}{" "}
-            <ArrowRight size={14} />
-          </button>
-        </div>
+      <main className="auth-right">
         <div className="auth-card">
-          <span className="auth-lock">
-            <LockKeyhole size={23} />
-          </span>
-          <div className="eyebrow">SELAMAT DATANG DI SIMORA</div>
-          {mode === "register" && (
-            <p className="auth-intro">
-              Daftar sebagai Anggota dan jadi bagian dari kolaborasi.
-            </p>
-          )}
+          <div className="auth-intro">
+            <h1>{mode === "login" ? "Masuk ke SIMORA" : "Daftar akun anggota"}</h1>
+            {mode === "login" && (
+              <p>Gunakan email dan kata sandi akun SIMORA Anda.</p>
+            )}
+          </div>
           {mode === "register" && (
             <div className="register-info">
-              <Users size={19} />
-              <span>
-                Pendaftaran hanya untuk <strong>Anggota</strong>.
-                <small>Akun pengurus dan pembina dibuat oleh Admin.</small>
-              </span>
+              <Users size={19} aria-hidden="true" />
+              <span>Akun Pengurus dan Pembina dibuat oleh Admin.</span>
             </div>
           )}
           {error && (
@@ -294,7 +238,6 @@ export default function AuthGate({
                     maxLength={24}
                   />
                 </label>
-
               </>
             )}
             <label>
@@ -308,10 +251,11 @@ export default function AuthGate({
                 maxLength={100}
               />
             </label>
-            <label>
-              Kata sandi
+            <div className="auth-password">
+              <label htmlFor="auth-password">Kata sandi</label>
               <div className="password-field">
                 <input
+                  id="auth-password"
                   name="password"
                   type={show ? "text" : "password"}
                   autoComplete={
@@ -336,7 +280,7 @@ export default function AuthGate({
                   {show ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-            </label>
+            </div>
             {mode === "register" && (
               <label>
                 Konfirmasi kata sandi
@@ -354,26 +298,48 @@ export default function AuthGate({
             <button
               className="primary auth-submit"
               type="submit"
-              disabled={busy || fatal}
+              disabled={busy}
             >
               {busy
                 ? "Memproses..."
                 : mode === "login"
                   ? "Masuk"
                   : "Daftar sebagai Anggota"}
-              {!busy && <ArrowRight size={17} />}
+              {!busy && <ArrowRight size={17} aria-hidden="true" />}
             </button>
           </form>
-          <p className="auth-footnote">
-            <ShieldCheck size={14} /> Akun dan kehadiran tersimpan di server.
-            <br />
-            Hubungi Admin jika membutuhkan akses Pengurus.
-          </p>
+          <div className="auth-switch">
+            <span>{mode === "login" ? "Belum punya akun?" : "Sudah punya akun?"}</span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setMode(mode === "login" ? "register" : "login");
+                setError("");
+                setNotice("");
+                setShow(false);
+              }}
+            >
+              {mode === "login" ? "Daftar sebagai anggota" : "Masuk"}
+            </button>
+          </div>
+          {mode === "login" && (
+            <details className="auth-help">
+              <summary>
+                <CircleHelp size={18} aria-hidden="true" />
+                Bantuan masuk
+                <ChevronDown size={17} className="auth-help-chevron" aria-hidden="true" />
+              </summary>
+              <dl>
+                <dt>Lupa kata sandi?</dt>
+                <dd>Hubungi Admin SIMORA dan sertakan email akun Anda.</dd>
+                <dt>Perlu akses Pengurus atau Pembina?</dt>
+                <dd>Minta Admin SIMORA membuatkan akun dengan peran yang sesuai.</dd>
+              </dl>
+            </details>
+          )}
         </div>
-        <div className="auth-bottom">
-          SIMORA — Sistem Manajemen Organisasi & Kegiatan
-        </div>
-      </section>
+      </main>
     </div>
   );
 }
